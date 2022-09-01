@@ -1,0 +1,12 @@
+function [f_fdr, p_fdr] = teg_do_fdr(pvec, fdr_crit)
+
+[p_sort, indices] = sort(abs(pvec), 'ascend');
+
+p_try = 0.05;
+n_sig = length(find(p_sort < p_try));
+N = length(p_sort);
+n_exp = p_try * N;
+
+while n_sig * fdr_crit <= n_exp,
+    
+end;

@@ -1,0 +1,320 @@
+\documentclass{article}
+\usepackage{apacite,url}
+
+\title{EEG toolbox documentation}
+\author{Computational Memory Lab}
+
+%%% Plan for tutorial:
+% 1) intro to data setup
+% 2) extraction, alignment and rereferencing
+% 3) simple ERPs
+% 4) oscillatory analysis
+% 5) aggregation stats for oscillatory analysis (bootstrap function)
+% 6) plotting: topoplots with EEGLAB and tal3d for iEEG
+
+\begin{document}
+\maketitle
+
+% Note: need to provide sample data with this documentation which can
+% then serve as a tutorial
+
+\textbf{Note:} for all of the functions in the EEG toolbox, you can
+get help by typing 'help $<$functionname$>$' at the matlab
+prompt. This will show you what the function does and what the input
+and output should be.
+
+\section{Getting started}
+The EEG toolbox operates on data in a particular directory structure,
+where the data is saved in separate files for each channel, in a
+separate directory for each subject. There is a top-level directory
+often referred to as ``basedir'', which could be named after your
+experiment, for example ``eeg/mms'' (it is important that there is a
+directory named ``eeg'' at the very top). In that basedir, there is a
+directory for every subject, e.g., ``MMS002''. Every subject has
+various standard directories, most importantly a directory with events
+structures (will be explained later on). This directory can be named
+``events''. It is important to place all your data under an ``eeg''
+directory, which can hold files with information relevant to all data
+analyses such as specifications for wavelet and multitaper parameters.
+
+\begin{verbatim}
+~/eeg/
+  eeganalparams.txt
+  mms/
+    FGS001/
+      events/
+      behavioral/
+      eeg.reref/
+      eeg.noreref/
+        params.txt
+      raw/
+    FGS002/
+    FGS003/
+\end{verbatim}
+
+If you are using EGI data, the EEG toolbox contains a function to
+split the .raw files into single channel files (\verb7egi_split.m7). A
+more generic function that reads binary files is \verb7spliteeg.m7,
+otherwise, you can write your own function along these lines. This
+will, importantly, create a file \verb7params.txt7, with parameters
+like the sample rate. Another important file is
+\verb7eeganalparams.txt7 in the \verb3~\eeg\3 directory, which
+contains analysis methods parameters, e.g., wavelet width. Your
+\verb5eeganalparams.txt5 file can look for example like this:\\
+\begin{verbatim}
+freqs (2^(1/8)).^(8:56)
+width 6
+bandwidth 1
+windowsize 0.3
+\end{verbatim}
+In the above file, \verb4freqs4 is the vector of frequencies that will
+be analyzed in the oscillatory analysis scripts, and \verb5width5 is
+the width of the wavelets (for which we generally use
+6~\cite{TallEtal97,CaplEtal01}).
+
+In general if you want to look at a file with EEG data, you can use
+the function \verb5look.m5, which takes as input argument an EEG
+filename and a channel, and gets basically the contents of the file as
+a vector and plots it on the screen.
+ 
+\section{Events}
+The EEG toolbox is built around events structures, which are matlab
+structures that contain your behavioral data, and that can be used to
+retrieve the associated EEG data. You will have to write your own
+matlab script to extract events from your behavioral logs, which can
+be modeled on the sample script \verb7createFGSevents.m7. The crucial
+fields that every events structure should have in order to function in
+the EEG toolbox are a field containing the events time in the units of
+your behavioral data file (e.g., milliseconds). You can then select
+subsets of events using the \verb7filterStruct.m7 function, which
+takes in a logical expression, e.g., to get all CUE events we use
+\begin{verbatim}
+cueEvents = filterStruct(events,'strcmp(type,''CUE'')')
+\end{verbatim}
+ where 'events' is the name of the events structure we have loaded
+ with
+\begin{verbatim}
+events=loadEvents('~/mms/data/FGS001/beh/events.mat')
+\end{verbatim}
+ (an alternative way of loading events is
+ \verb5events=loadSubjEvents5, which takes as input arguments a
+ basedir (see above), a cell array with subjects (e.g.,
+ subj={'FGS001','FGS002','FGS004'}) and the name of events files
+ (e.g., 'beh/events.mat')). These cueEvents can then be used in
+ subsequent EEG toolbox functions like \verb5erp.m5 (see below).
+
+Another very useful function is \verb5getStructField5, which gives you
+the contents of a particular field in your events structure in an
+array, e.g., 
+\begin{verbatim}
+isCorrect=getStructField(events,'correct')
+\end{verbatim}
+gives you a binary vector that for every event tells you whether a
+subject got it right. If the field contains strings, the output of
+this function will be a cell array. Similarly, the \verb5inStruct.m5
+function will tell you for a certain logical expression, e.g.,
+'iscorrect==0' whether that is true for every event (so it yields a
+binary vector with the length of the events structure).
+
+
+\section{Align}
+Once you have your events structures and EEG split out by channels,
+you are ready for aligning these events with the EEG data. This will
+create the fields ``eegfile'' and ``eegoffset'' in your events, which
+are crucial for the rest of the EEG toolbox to work. The exact
+functions to use for aligning are exemplified in the \verb3prep_egi.m3
+function, and include \verb5runalign.m5 and \verb6logalign.m6. This
+will basically take the extracted pulses from the EEG data and the
+pulse sending logs from your behavioral data and use regression to
+line those up. When you are dealing with iEEG data, you will have to
+extract the pulses from an analog channel, and this is best done using
+\verb5alignTool.m5, which has a gui to extract pulses and also to put
+all the correct files together for the alignment.  After you have
+aligned the data, you probably want to run an eyeblink detection
+script, which we have called \verb5addArtifacts.m5. This basically
+looks for large deflections in the fast and slow moving averages of
+the EEG data. In our EGI data, you probably want to call it as
+follows: 
+\begin{verbatim}
+addArtifacts(eventfile,{[26,127],[8,126]},100,0);
+\end{verbatim}
+which basically uses the channels above and below the eye in bipolar
+to find these deflections.
+
+\section{ERP}
+Plotting ERPs using the EEG toolbox is really simple: use the
+\verb4erp.m4 function. First select an interesting set of events as
+described above, e.g.,
+\begin{verbatim}
+corrEvs=filterStruct(events,'correct')
+\end{verbatim}
+ Then plug those into
+the ERP generating function, e.g.,
+\begin{verbatim}
+erp_chan10=erp(10,corrEvs,600,-100,500,[-100 0],[58 62],'stop',1,5)
+\end{verbatim}
+A couple of notes are in order: the durations are specified in
+samples, so in the case of a samplerate of 500 Hz we often want to
+look at 1 second, with a 200-ms baseline (100 samples). The next
+variable is the buffer, for which we usually want a second, which is
+necessary to avoid filtering or convolution artifacts. The variable
+\verb6[-100 0]6 indicates that we use the 100 ms before the event as a
+baseline. Then really important is filtering out the line noise, which
+is why we use \verb3[58 62]3, of a 'stop' (bandpass) filter, with one
+filtering iteration. The last parameter is the kurtosis threshold,
+which we use to throw out artifacts~\cite{DeloMake04}. 5 is usually a
+pretty good threshold for scalp and iEEG in our experience. You can
+use the function \verb6ga_erp.m6 to compute a grand average ERP over
+subjects, which also gives you errorbars, and can compute the ERP both
+treating subjects independently as well as treating all data as one
+subject (see the help for more info). 
+
+In order to determine the significance of differences in ERP
+amplitude, you can use the \verb5bootstrap.m5 function. This function
+takes in as input arguments the number of bootstrap iterations
+(usually we use 1000), then either one or two vectors/matrices of
+data. The data can for example be the difference in ERP amplitude
+between condition 1 and condition 2 for every subject or every event
+at every point in time. The bootstrap function will create a
+distribution of results of your statistic (a one-sample t-test or
+signed rank test for one-sample data, or a two-sample t-test or
+ranksum test for two-sample data) for your data (in the one-sample
+case, you sign of the data is randomly swapped, in the two-sample
+case, the conditions of your data are swapped). You can then examine
+how far your observed test statistic falls outside the randomized
+distribution (the observed test statistic is the second output
+argument of the \verb5bootstrap.m5 function).
+
+\section{Power (wavelet and multitaper)}
+Similar to ERPs, our wavelet processing takes in a set of events and a
+channel in order to provide you with an events x frequencies x samples
+(time) array with power amplitude values (and if desired also
+phases). The most useful function here is probably
+\verb5getphasepow.m5, which gives you basically that data. A lower
+level function, if you do not have events, but instead plain EEG, is
+\verb5multienergyvec5. An example of calling \verb6getphasepow.m6 is:
+\begin{verbatim}
+[phase,pow] = getphasepow(10,corrEvs,1000,0,1000,'filtfreq',[58
+62],'filttype','stop','kthresh',5)
+\end{verbatim}
+which uses very similar parameters to the erp function, but now takes
+in durations in milliseconds. Here you do not do the baseline
+correction, so there is no variable for that (and probably most of the
+time you want your offset to be 0). Plotting a simple power
+spectrogram can be done by taking the mean over events (where you
+probably want to take a log10 of the power in order to be able to see
+anything, to counteract the 1/f falloff of the power spectrum). An
+example would be 
+\begin{verbatim}
+imagesc(squeeze(mean(log10(pow))))
+\end{verbatim}
+In order to make power comparable across frequencies and subjects, it
+is often useful to look at z-transformed power. The function that does
+this is \verb5ztrans_pow.m5. The input arguments are very similar to
+\verb6getphasepow.m6, except that they are inserted in a
+structure. Different is optional info you can give the function about
+pieces of data you'd like to give it to compute baseline power (e.g.,
+times when the subject is staring at a fixation cross). If you do not
+give separate baseline info, then the baseline is the mean and
+standard deviations over all events you give it as input.
+
+For multitapers, we use very similar functions, where the main
+function is \verb5mtphasepow.m5, which takes as input again the
+channel, events and desired durations. The optional parameters are
+slightly different: the bandwidth and windowsize of the
+multitapers. We have found that a bandwidth of 1 and windowsize of .3
+work quite well, even though that uses only one taper. Note that you
+always have to adapt both windowsize and bandwidth together (see
+~\citeA{RaghEtal01,vanVEtal07a} for more info). 
+
+In order to asses significance of power results, we use mainly two
+randomization methods (you can also use the False Discovery rate
+procedure~\cite{BenjHoch95}, with the function \verb5fdr.m5). The
+first randomization method is called the ``sum-z
+method''~\cite{GibbShan87,SedeEtal07b}, where we compute a
+bootstrapped test statistic for every electrode, frequency and
+timepoint/timebin within every subject. We then combine across
+subjects by adding up the \verb5norminv.m5 of every p-value for the
+actual statistics as well as the bootstrapped distributions, and check
+where the actual statistic falls in that distribution, which is the
+final p-value across subjects for that frequency, timebin and
+electrode.
+
+
+\section{Pepisode}
+Pepisode is a power analysis developed by Jeremy Caplan in our
+lab~\cite{CaplEtal01}, and basically it computes the fraction of time
+an oscillation exceeding the background activity is present in your
+events. Calling these functions is very similar to calling power
+functions. However, it requires a pre-processing step, in which for
+every piece of EEG data, it is determined whether there are
+significant oscillations present at every frequency (significant
+oscillations exceed a duration and an amplitude threshold). This
+pre-processing function is called \verb4calcPepisode.m4, and takes as
+input arguments a set of events, a channel, and an output directory
+name in which the pre-processed data will be placed (matrices with
+zeros or ones for every point in time and every frequency, indicating
+whether there is a significant oscillation). The function
+\verb5getuvec_ms5 will then return this binary vector for your events
+of interest and for the specified duration. The variable bgThreshold
+indicates at what fraction of the mean oscillation amplitude over the
+whole EEG file the threshold should be set (usually set to 95\%). You
+can take the mean of this binary vector over time in order to
+determine what fraction of your time interval of interest is taken up
+by this oscillation.
+
+\section{Plotting}
+A useful function for plotting is \verb6publishfig.m6, which makes the
+figure such that it has larger axis labels etc, which is useful for
+publishing purposes. Note that it removes the title, so apply the
+title after running this function.
+
+For plotting the topography of effects for scalp EEG, we use
+EEGLAB~\cite{DeloMake04}, \url{http://XXXXX}. The function that we use
+that is \verb4headplot.m4, which requires as input a specification of where
+the electrodes are located (for our EGI system that is a file named
+'GSN129.sfp') and an array with a value to be plotted for every
+electrode. For plotting iEEG data, we use \verb4tal3d.m4, for which
+more documentation is available in the lab wiki (\verb4tal3d.m4 makes
+use of the electrode database stored in
+\verb5/data/eeg/electrodesXXXX.mat5, which contains a record for every
+electrode, which has been generated using the talairach daemon).
+
+There are also other plotting scripts in the \verb4talk4 directory of
+the EEG toolbox, which are older and not as accurate in general.
+
+\section{Simulation}
+If you're interested in testing new EEG analysis tools, you can
+generate fake EEG of a specified number of events, duration,
+samplerate and amplitude using \verb5getfakeEEG.m5, to which you can
+add sinusoidal signals of specified amplitude, phase, duration and
+time using \verb5addSignal.m5 or \verb5addSignalProp.m5 (where the
+second version adds a signal with an amplitude that is a proportion of
+the background EEG and the first one specifies an absolute
+amplitude). These scripts were used in~\cite{vanVEtal07a}.
+
+\section{Running scripts on the cluster}
+To run Matlab scripts on the cluster, there are a few useful eeg
+toolbox functions. Basically you need to write a script that loops
+over some process that is independent of others, such as doing a
+computation for every electrode (looping over them) and storing the
+results of each in a separate file. You would probably use code
+similar to this:\\
+\begin{verbatim}
+   for c = 1:128
+    chanFile = sprintf('~/mms/data/datFiles/myAnalysis%.03d.mat',c);
+    if ~exist(chanFile)
+       lockFile(chanFile);
+       << do computation>>
+       << save data in chanFile >>
+       releaseFile(chanFile);
+    end
+   end
+\end{verbatim}
+
+
+\bibliographystyle{apacite}
+\bibliography{memlab}
+
+
+\end{document}

@@ -1,0 +1,30 @@
+function [F, df1, df2, ptest, WL, R, eta] = teg_test_T2(y_red, ModelX)
+
+ContrastsM = y_red * ModelX;
+TM = ContrastsM;
+BM = ones(size(y_red, 1), 1) * mean(ContrastsM);
+EM = ContrastsM - BM;
+T = TM'*TM;
+E = EM'*EM;
+H = T - E;
+WL = det(E) / det(T);
+
+p = size(ContrastsM, 2);
+k = 1;
+N = size(ContrastsM, 1);
+U = WL;
+
+s = sqrt((p^2 * (k - 1)^2 - 4) / (p^2 + (k - 1)^2 - 5));
+m = N - 1 - (p + k) / 2;
+R1 = (1 - U^(1 / s)) / (U^(1 / s));
+R2 = (m * s - p * (k - 1) / 2 + 1) / (p ^ (k - 1));
+R = R1 * R2;
+
+F = R;
+df1 = pp * k;
+df2 = N - df1;
+ptest = teg_fsig(F, df1, df2);
+
+eta = 1 - WL^(1/p);
+
+doorstop = 1;

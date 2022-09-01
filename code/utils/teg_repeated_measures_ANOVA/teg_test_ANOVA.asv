@@ -1,0 +1,28 @@
+function [F, df1, df2, p, MSM, MSE, eta] = teg_test_ANOVA(y_red, ModelX)
+
+nSubj = size(y_red, 1);
+
+ContrastsM = y_red * ModelX;
+
+X = [];
+y = [];
+for iCol = 1:size(ModelX, 2),
+    mxvec = ModelX(:, iCol);
+    yvec
+end;
+y = y - mean(y);
+b = inv(X'*X)*X'*y;
+pred = X*b;
+err = y - pred;
+
+SSM = SS(pred, 0);
+SSE = SS(err, 0);
+SST = SS(y, 0);
+
+df1 = size(ContrastsM, 2);
+df2 = (nSubj - 1) * df1;
+MSM = SSM / df1;
+MSE = SSE / df2;
+F = MSM / MSE;
+p = teg_fsig(F, df1, df2);
+eta = SSM / SST;

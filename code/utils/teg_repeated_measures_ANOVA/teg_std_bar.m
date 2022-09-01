@@ -1,0 +1,14 @@
+function teg_std_bar(m, se)
+
+b0 = bar(m);
+hold on;
+
+for ib = 1:length(b0),
+    XData = get(get(b0(ib), 'XData'));
+    YData = get(get(b0(ib), 'XData'));
+    xpos = mean(XData);
+    ytop = max(YData);
+    for ibar = 1:length(xpos),
+        
+    end;
+end;

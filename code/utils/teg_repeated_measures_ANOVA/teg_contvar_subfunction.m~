@@ -1,0 +1,222 @@
+function [y_raw_cell_obs_0, O] = teg_contvar_subfunction(contvar, thisset, y, cellsets, iPred, M_raw, nSubj, nColsFactor, X0, iBetwCont, ...
+    contvar1, O, pCritForFurther, plots, labels, Betw_labels, fname, factorStarts, recursestr, Betw_vars_involved, verbose0, curr_test, p_fdr, yN, NM)
+
+y_raw_cell_obs_0 = [];
+
+if isempty(curr_test) || 1 == 1,
+    X00 = X0;
+    contvar{iBetwCont} = contvar{iBetwCont} - mean(contvar{iBetwCont});
+    X0 = X0 - ones(size(X0, 1), 1) * mean(X0);
+    
+    X0 = X0 .* (contvar{iBetwCont} * ones(1, size(X0, 2)));
+    X0 = X0 - ones(size(X0, 1), 1) * mean(X0);
+    y = y - mean(y);
+    % y = y .* contvar{iBetwCont};
+    
+    b = inv(X0' * X0) * X0' * y;
+    pred = X0 * b;
+    
+    % 
+    
+  [y_red, pred_red, thisset] = teg_inner_recode_2(pred, y, yN, nSubj, thisset);
+    y_red_M = teg_inner_recode_raw(M_raw, NM, cellsets, iPred);
+    
+    for iCellSet = 1:length(cellsets{iPred}),
+        y_raw_cell_obs = M_raw(:, cellsets{iPred}{iCellSet});
+        % Take differing cell counts into account
+        y_cell_obsN = NM(:, cellsets{iPred}{iCellSet});
+        y_cell_obsMN = sum(y_cell_obsN, 2); % Get mean per subject over variable combinations.
+        y_cell_obsProp = y_cell_obsN ./ (y_cell_obsMN * ones(1, size(y_cell_obsN, 2)));
+        y_raw_cell_obs = y_raw_cell_obs .* y_cell_obsProp;
+        y_raw_cell_obs = sum(y_raw_cell_obs, 2);
+        y_red_M = [y_red_M y_raw_cell_obs];
+    end;
+    
+    c = [];
+    c_w = [];
+    y_raw_cell_obs_0 = y_red_M - mean(y_red_M, 2) * ones(1, size(y_red_M, 2));
+    for iCellSet = 1:length(cellsets{iPred}),
+        c0 = corrcoef(contvar1{iBetwCont}, y_red_M(:, iCellSet));
+        c = [c c0(1, 2)];
+        c0 = corrcoef(contvar1{iBetwCont}, y_raw_cell_obs_0(:, iCellSet));
+        c_w = [c_w c0(1, 2)];
+    end;
+    
+    S = cov(reshape(y_red, nSubj, length(y_red) / nSubj));
+    eps0 = teg_get_eps(S);
+    df1 = nColsFactor(iPred) * eps0;
+    MSM = SS(pred_red) / df1;
+    df2 = (nSubj - 1) * df1 * eps0;
+    MSE = SS(pred_red - y_red) / df2;
+    F = MSM / MSE;
+    p = teg_fsig(F, df1, df2);
+    if isempty(curr_test),
+        O = [O; F df1 df2 p MSM MSE];
+    end;
+else,
+    df1 = O(curr_test, 2);
+    MSM = O(curr_test, 5);
+    df2 = O(curr_test, 3);
+    MSE = O(curr_test, 6);
+    F = O(curr_test, 1);
+    p = O(curr_test, 4);
+end;
+
+if p <= pCritForFurther && ~isempty(curr_test),
+    % Plotting: between, continuous
+    if plots == 1 && verbose0 > 0,
+        d = diff([y_raw_cell_obs_0(:, [1 2])]')'; % level 2 - level 1
+        contvar_per_sub = reshape(contvar{iBetwCont}, nSubj, length(contvar{iBetwCont}) / nSubj);
+        contvar_per_sub = contvar_per_sub(:, 1); % frst column: discard repeated cells
+        titlestr = [labels{iPred} ' by ' Betw_labels{iBetwCont} recursestr];
+        xstr = Betw_labels{iBetwCont};
+        ystr = labels{iPred};
+        teg_plot_rm_scatter(contvar_per_sub, d, titlestr, xstr, ystr);
+        if ~isempty(fname),
+            print(gcf, '-dps', '-append', [pwd '/' fname]);
+            print(gcf, '-dtiff', '-r300', [pwd '/' fname '_' titlestr '_scatter1']);
+            saveas(gcf, [pwd '/' fname '_' titlestr '_scatter1'], 'fig');
+        end;
+        close(gcf);
+        
+        ystr = fname;
+        teg_plot_rm_scatter2(contvar_per_sub, y_raw_cell_obs_0, titlestr, xstr, ystr);
+        if ~isempty(fname),
+            print(gcf, '-dps', '-append', [pwd '/' fname]);
+            print(gcf, '-dtiff', '-r300', [pwd '/' fname '_' titlestr '_scatter2']);
+        end;
+        close(gcf);
+    end;
+    
+    fprintf([fname '\t' labels{iPred} ' x ' Betw_labels{iBetwCont} ' :\tF(' num2str(df1) ', ' num2str(df2) ') = ' num2str(F) ', p = ' num2str(p)]);
+    if p <= p_fdr,
+        fprintf(' *** ');
+    else,
+        fprintf(' * ');
+    end;
+    if verbose0 > 0,
+        fprintf('\n\ty_cells: ');
+        myr = mean(y_red_M);
+        for ib = 1:length(myr),
+            fprintf([num2str(myr(ib))]);
+            if ib < length(myr),
+                fprintf(', ');
+            end;
+        end;
+        fprintf('.\n\tb: ');
+        for ib = 1:length(b),
+            fprintf([num2str(b(ib)) ' ']);
+        end;
+        
+        fprintf('.\n\tCorrelations:\n');
+        for ib = 1:length(c),
+            N = nSubj;
+            t = c(ib) / sqrt((1 - c(ib)^2) / (N - 2));
+            df = N - 2;
+            p = teg_ttest(t, df);
+            fprintf(['\t\tCell ' num2str(ib) ': ' num2str(c(ib)) ', t = ' num2str(t) '(' num2str(df) '), p = ' num2str(p)]);
+            if p < 0.05,
+                fprintf(' *\n');
+            else,
+                fprintf('\n');
+            end;
+        end;
+        fprintf('\tCorrelations (within):\n');
+        for ib = 1:length(c),
+            N = nSubj;
+            t = c_w(ib) / sqrt((1 - c_w(ib)^2) / (N - 2));
+            df = N - 2;
+            p = teg_ttest(t, df);
+            fprintf(['\t\tCell ' num2str(ib) ' (within-corr): ' num2str(c_w(ib)) ', t = ' num2str(t) '(' num2str(df) '), p = ' num2str(p)]);
+            if p < 0.05,
+                fprintf(' *\n');
+            else,
+                fprintf('\n');
+            end;
+        end;
+        fprintf(['\teps = ' num2str(eps0) '\n']);
+        %             % Paired t-tests
+        fprintf('\tPost-hoc:\n');
+        nComps = size(y_raw_cell_obs_0, 2); nComps = nComps * (nComps - 1) / 2;
+        for col2 = 1:size(y_raw_cell_obs_0, 2),
+            for col1 = 1:(col2 - 1),
+                [p, t, df] = test_diff_corr(contvar1{iBetwCont}, y_raw_cell_obs_0(:, [col1 col2]));
+                if p < 0.05,
+                    tresstr = [num2str(col2) ' vs ' num2str(col1) ': t(' num2str(df) ') = ' num2str(t)  ', p = ' num2str(p)];
+                    fprintf(['\t\t' tresstr]);
+                    if p < 0.05 / length(nComps),
+                        fprintf(' ***\n');
+                    else,
+                        fprintf(' *\n');
+                    end;
+                end;
+            end;
+        end;
+        fprintf('\n');
+        % Split-half
+        if isempty(recursestr),
+            fprintf('Splitting last by first continuous variable: low\n');
+            [contvar_per_group{1}, d_per_group{1}] = splitit(contvar, thisset, y, cellsets, iPred, M_raw, nSubj, nColsFactor, X00, iBetwCont, ...
+                contvar1, O, pCritForFurther, plots, labels, Betw_labels, fname, factorStarts, [' low ' Betw_labels{Betw_vars_involved{iBetwCont}(1)}], 0, Betw_vars_involved, verbose0, curr_test, p_fdr, yN, NM);
+            fprintf('Splitting last by first continuous variable: high\n');
+            [contvar_per_group{2}, d_per_group{2}, sepvar, xvar] = splitit(contvar, thisset, y, cellsets, iPred, M_raw, nSubj, nColsFactor, X00, iBetwCont, ...
+                contvar1, O, pCritForFurther, plots, labels, Betw_labels, fname, factorStarts, [' high ' Betw_labels{Betw_vars_involved{iBetwCont}(1)}], 1, Betw_vars_involved, verbose0, curr_test, p_fdr, yN, NM);
+            titlestr = [labels{iPred} ' x ' Betw_labels{iBetwCont}];
+            titlestr = ['Alcohol' ' x ' Betw_labels{iBetwCont}];
+            xstr = Betw_labels{xvar};
+            ystr = labels{iPred};
+            ystr = 'Alcohol - non-alcohol [ms]';
+            if plots == 1,
+                teg_plot_rm_scatter3(contvar_per_group, d_per_group, titlestr, xstr, ystr, Betw_labels{sepvar});
+                if ~isempty(fname),
+                    print(gcf, '-dps', '-append', fname);
+                    print(gcf, '-dtiff', '-r300', [fname '_' titlestr '_scatter3']);
+                end;
+            end;
+        end;
+        close(gcf);
+    else,
+        fprintf('\n');
+    end;
+end;
+
+function [contvar_per_group, d_per_group, sepvar, xvar] = splitit(contvar, thisset, y, cellsets, iPred, M_raw, nSubj, nColsFactor, X0, iBetwCont, ...
+    contvar1, O, pCritForFurther, plots, labels, Betw_labels, fname, factorStarts, recursestr, lowhi, Betw_vars_involved, verbose0, curr_test, p_fdr, yN, NM)
+mid0 = median(contvar{Betw_vars_involved{iBetwCont}(1)});
+if lowhi == 0,
+    flowhi = find(contvar{Betw_vars_involved{iBetwCont}(1)} < mid0);
+else
+    flowhi = find(contvar{Betw_vars_involved{iBetwCont}(1)} >= mid0);
+end;
+% contvar{iBetwCont} = contvar{Betw_vars_involved{iBetwCont}(end)};
+tmp = reshape(contvar{iBetwCont}, nSubj, length(contvar{iBetwCont}) / nSubj);
+tmp = zeros(size(tmp));
+tmp(flowhi) = 1;
+tmp = mean(tmp, 2);
+flowhi2 = find(tmp);
+
+for its = 1:length(thisset),
+    bvec = zeros(size(y));
+    bvec(thisset{its}) = 1;
+    bvec = bvec(flowhi);
+    f = find(bvec);
+    thisset{its} = f;
+end;
+for iBC = 1:length(contvar),
+    contvar{iBC} = contvar{iBC}(flowhi);
+    contvar1{iBC} = contvar1{iBC}(flowhi2);
+end;
+y = y(flowhi);
+X0 = X0(flowhi);
+M_raw = M_raw(flowhi2, :);
+% contvar1{iBetwCont} = contvar1{Betw_vars_involved{iBetwCont}(end)}(flowhi2);
+nSubj = length(flowhi2);
+pCritForFurther = 1;
+X0 = X0 - ones(size(X0, 1), 1) * mean(X0);
+xvar = Betw_vars_involved{iBetwCont}(2);
+sepvar = Betw_vars_involved{iBetwCont}(1);
+iBetwCont = Betw_vars_involved{iBetwCont}(2);
+[y_raw_cell_obs_0, O] = teg_contvar_subfunction(contvar, thisset, y, cellsets, iPred, M_raw, nSubj, nColsFactor, X0, iBetwCont, ...
+    contvar1, O, 1, plots, labels, Betw_labels, fname, factorStarts, recursestr, Betw_vars_involved, verbose0, curr_test, p_fdr, yN, NM);
+contvar_per_group = contvar1{iBetwCont};
+d_per_group = diff(y_raw_cell_obs_0')';

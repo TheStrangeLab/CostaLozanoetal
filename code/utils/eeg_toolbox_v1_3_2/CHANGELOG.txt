@@ -1,0 +1,13 @@
+EEG_TOOLBOX Changelog
+---------------------
+
+Version 1.3.0 (1-2-08): Far too many changes and improvements to list.
+
+Version 1.2.0 (17-3-04): New functions and maintenance.  New spliteeg
+	method, rereferencing script, multitaper spectrum...
+
+Version 1.1.0 (16-1-04): Updates include new functions to generate
+	grand average ERPs and to load generic events.  Also some bug
+	fixes. 
+
+Version 1.0.0 (17-11-03): Initial release. 

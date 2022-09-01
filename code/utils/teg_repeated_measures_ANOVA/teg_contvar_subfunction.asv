@@ -1,0 +1,22 @@
+function O = teg_contvar_subfunction(X0, contvar1, cellsets, iPred, M_raw, iBetwCont, O, pCritForFurther, plots, labels, Betw_labels, verbose0, p_fwe, NM, fname)
+
+digprec = 2;
+
+[y_red_M, expanded0] = teg_inner_recode_raw(M_raw, NM, cellsets, iPred);
+contvar0 = contvar1{iBetwCont};
+contvar0 = contvar0 - mean(contvar0);
+contvar0 = contvar0 * ones(1, length(X0) / length(contvar0(:)));
+X01 = X0 .* (contvar0(:) * ones(1, size(X0, 2)));
+[F, df1, df2, p, SSM, SSE, MSM, MSE, eta, eps0, bModel, X_ind] = teg_RMF_ANOVA(expanded0, X01, y_red_M, []);
+
+O = [O; F df1 df2 p MSM MSE];
+
+if p <= pCritForFurther,
+    % Plotting: between, continuous
+    fprintf([fname '\t' Betw_labels{iBetwCont} ' x ...\n']);
+    prestr = '\t';
+    teg_report(prestr, labels, iPred, df1, digprec, df2, F, p, SSM, SSE, MSM, MSE, eta, eps0, p_fwe, y_red_M, '', verbose0, bModel, X_ind);
+    % Extra for between: correlations with contrast scores
+    contrM = expanded0 * X0;
+    fprintf('\n');
+end;
