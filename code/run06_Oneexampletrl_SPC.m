@@ -28,55 +28,33 @@ isub=4
 oripath = 'C:\Users\manuela\Desktop\AversiveMemFormation';
 load(fullfile(oripath,'data2github','SingleUnit','Prestim',['Z',subjects{isub},'_data_exampletrl'])) 
 
-toi = [0.001 3.2];
-t1 = round(toi(1).*2000/1); 
-t2 = round(toi(2).*2000/1);
 
 figure
-iwire = 1
-trl = 13;
-plot(bSpikeeR{iwire}(trl,[t1:t2]),'b','LineWidth', 1)
-hold on
-plot(bandphaseseR{trl}(1,[t1:t2]),'r')
-ylabel ('amygdala theta phase')
-xlabel ('time in sec')
-set(gca,'XTick',1:400:6400,'XTickLabel',0:0.2:3.2);
-set(gcf,'color','w');
-box off
-% add legend
-Lgnd = legend ('hippocampal spikes','theta phase (3-12 hz)')
-Lgnd.Position(1) = 0.01;
-Lgnd.Position(2) = 0.01;
-
-hold on
-plot(bSpikeeKF{iwire}(trl,[t1:t2]),'b','LineWidth', 1)
-hold on
-plot(bandphaseseKF{trl}(1,[t1:t2]),'m')
-ylabel ('amygdala theta phase')
-xlabel ('time in sec')
-set(gca,'XTick',1:400:6400,'XTickLabel',0:0.2:3.2);
-set(gcf,'color','w');
-box off
-% add legend
-Lgnd = legend ('hippocampal spikes','theta phase (3-12 hz)')
-Lgnd.Position(1) = 0.01;
-Lgnd.Position(2) = 0.01;
-%%
-figure
-for i=1:15
-subplot(5,3,i)
-iwire = 1
-trl = 13;
-plot(bSpikeeR{iwire}(i,[t1:t2]),'b','LineWidth', 1)
-hold on
-plot(bandphaseseR{i}(1,[t1:t2]),'r')
-ylabel ('amygdala theta phase')
-xlabel ('time in sec')
-set(gca,'XTick',1:400:6400,'XTickLabel',0:0.2:3.2);
-set(gcf,'color','w');
-box off
-% add legend
-Lgnd = legend ('hippocampal spikes','theta phase (3-12 hz)')
-Lgnd.Position(1) = 0.01;
-Lgnd.Position(2) = 0.01;
-end
+            iwire = 1
+            trl = 13;
+            
+            plot(bSpikeeR{iwire}(trl,:),'b','LineWidth', 1)
+            hold on
+            plot(bandphaseseR{trl}(1,:),'r')
+            ylabel ('amygdala theta phase')
+            xlabel ('time in sec')
+            set(gca,'XTick',1:400:8000,'XTickLabel',-1:0.2:3);
+            set(gcf,'color','w');
+            box off
+            % add legend
+%             Lgnd = legend ('hippocampal spikes eR','theta phase eR(3-12 hz)')
+%             Lgnd.Position(1) = 0.01;
+%             Lgnd.Position(2) = 0.01;
+            hold on         
+            plot(bSpikeeKF{iwire}(trl,:),'k','LineWidth', 1)
+            hold on
+            plot(bandphaseseKF{trl}(1,:),'m')
+%             ylabel ('amygdala theta phase')
+%             xlabel ('time in sec')
+%             set(gca,'XTick',1:400:8000,'XTickLabel',-1:0.2:3);
+%             set(gcf,'color','w');
+            box off
+            % add legend
+%             Lgnd = legend ('hippocampal spikes eKF','theta phase eKF(3-12 hz)')
+%             Lgnd.Position(1) = 0.01;
+%             Lgnd.Position(2) = 0.01;
